@@ -135,9 +135,11 @@ class TestMP3SynchRip(unittest.TestCase):
     
     def test_sync_unconfigured(self):
         """Test sync with unconfigured sync directory."""
+        from mp3_synch_rip import DEFAULT_SYNC_PATH
+        
         # Create config with default sync dir
         config = self.test_config.copy()
-        config['sync_directory'] = '/path/to/device'
+        config['sync_directory'] = DEFAULT_SYNC_PATH
         
         config_file = Path(self.temp_dir) / "test_config2.json"
         with open(config_file, 'w') as f:

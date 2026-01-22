@@ -18,6 +18,9 @@ except ImportError:
     print("Error: yt-dlp is not installed. Run: pip install -r requirements.txt")
     sys.exit(1)
 
+# Constants
+DEFAULT_SYNC_PATH = "/path/to/device"
+
 
 class MP3SynchRip:
     """Main class for downloading and syncing audio files."""
@@ -97,7 +100,7 @@ class MP3SynchRip:
     
     def sync_to_device(self) -> bool:
         """Sync downloaded files to device."""
-        if not self.sync_dir or str(self.sync_dir) == "/path/to/device":
+        if not self.sync_dir or str(self.sync_dir) == DEFAULT_SYNC_PATH:
             self.logger.error("Sync directory not configured. Please update config.json")
             return False
         
@@ -121,16 +124,24 @@ class MP3SynchRip:
         self.logger.info(f"Syncing {len(audio_files)} files to {self.sync_dir}")
         
         # Copy files to sync directory
+        success_count = 0
+        failed_files = []
+        
         for audio_file in audio_files:
             try:
                 dest = self.sync_dir / audio_file.name
                 shutil.copy2(audio_file, dest)
                 self.logger.info(f"Copied: {audio_file.name}")
+                success_count += 1
             except Exception as e:
                 self.logger.error(f"Failed to copy {audio_file.name}: {e}")
-                return False
+                failed_files.append(audio_file.name)
         
-        self.logger.info("Sync completed successfully!")
+        if failed_files:
+            self.logger.warning(f"Sync completed with errors. Failed files: {', '.join(failed_files)}")
+            return False
+        
+        self.logger.info(f"Sync completed successfully! {success_count} files copied.")
         return True
     
     def run(self, download: bool = True, sync: bool = True):
