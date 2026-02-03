@@ -6,12 +6,25 @@ Sync MP3 files from ~/Music to Innioasis Y1 MP3 player.
 - Copies MP3s from ~/Music/Audiobooks to device /Audiobooks
 - Removes MP3s from device that aren't in source
 - Does not create or modify folders
+- Shows progress bar if 'rich' library is installed (pip install rich)
+
+TODO:
+- Add support for other audio formats (FLAC, OGG, etc.)
+- Add dry-run mode (--dry-run flag)
+- Add verbose/quiet flags
 """
 
 import os
 import shutil
 import sys
 from pathlib import Path
+
+try:
+    from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn, TransferSpeedColumn
+    from rich.console import Console
+    RICH_AVAILABLE = True
+except ImportError:
+    RICH_AVAILABLE = False
 
 
 # Files to exclude from sync
@@ -25,7 +38,16 @@ EXCLUDE_FILES = {
 
 
 def find_y1_device():
-    """Search for connected Innioasis Y1 device."""
+    """
+    Search for connected Innioasis Y1 device in /media.
+
+    Checks for Y1-specific markers:
+    - Android/data/com.innioasis.y1 directory
+    - Themes folder with Y1 wallpaper files
+
+    Returns:
+        Path to device mount point, or None if not found
+    """
     media_base = Path('/media')
 
     if not media_base.exists():
@@ -67,7 +89,7 @@ def format_size(size_bytes):
 
 
 def get_device_free_space(device_path):
-    """Get free space on device."""
+    """Get free space on device in bytes."""
     stat = os.statvfs(device_path)
     return stat.f_frsize * stat.f_bavail
 
@@ -121,9 +143,28 @@ def get_device_mp3s(device_path):
     return mp3s
 
 
-def sync_files(source_mp3s, device_path):
-    """Copy MP3 files to device. Only copies to existing folders."""
+def sync_files(source_mp3s, device_path, progress=None, task=None, console=None):
+    """
+    Copy MP3 files to device. Only copies to existing folders.
+
+    Args:
+        source_mp3s: Dict mapping destination relative paths to source Path objects
+        device_path: Path to the mounted device
+        progress: Optional rich Progress instance for progress bar
+        task: Optional rich task ID for progress tracking
+        console: Optional rich Console for styled output
+
+    Returns:
+        Tuple of (copied_count, skipped_count, errors_list)
+    """
     device = Path(device_path)
+    use_rich = console is not None
+
+    def output(msg, plain_msg=None):
+        if use_rich:
+            console.print(msg)
+        else:
+            print(plain_msg if plain_msg else msg)
 
     copied = 0
     skipped = 0
@@ -134,24 +175,32 @@ def sync_files(source_mp3s, device_path):
 
         # Check if destination folder exists (don't create folders)
         if not dest_file.parent.exists():
-            print(f"  [SKIP] {dest_rel} (folder doesn't exist on device)")
+            output(f"  [yellow][SKIP][/yellow] {dest_rel} (folder doesn't exist on device)",
+                   f"  [SKIP] {dest_rel} (folder doesn't exist on device)")
             skipped += 1
+            if progress and task is not None:
+                progress.advance(task)
             continue
 
         # Check if file already exists and is same size
         if dest_file.exists():
             if dest_file.stat().st_size == src_file.stat().st_size:
-                print(f"  [SKIP] {dest_rel} (already synced)")
+                output(f"  [yellow][SKIP][/yellow] {dest_rel} (already synced)",
+                       f"  [SKIP] {dest_rel} (already synced)")
                 skipped += 1
+                if progress and task is not None:
+                    progress.advance(task)
                 continue
 
         # Copy file
         try:
-            print(f"  [COPY] {dest_rel}")
+            output(f"  [green][COPY][/green] {dest_rel}",
+                   f"  [COPY] {dest_rel}")
             shutil.copy2(src_file, dest_file)
             copied += 1
         except Exception as e:
-            print(f"  [ERROR] {dest_rel}: {e}")
+            output(f"  [red][ERROR][/red] {dest_rel}: {e}",
+                   f"  [ERROR] {dest_rel}: {e}")
             errors.append((dest_rel, str(e)))
             # Clean up partial file on error
             if dest_file.exists():
@@ -160,25 +209,52 @@ def sync_files(source_mp3s, device_path):
                 except:
                     pass
 
+        if progress and task is not None:
+            progress.advance(task)
+
     return copied, skipped, errors
 
 
-def remove_orphans(source_mp3s, device_mp3s):
-    """Remove MP3s from device that don't exist in source."""
+def remove_orphans(source_mp3s, device_mp3s, progress=None, task=None, console=None):
+    """
+    Remove MP3s from device that don't exist in source.
+
+    Args:
+        source_mp3s: Dict of source MP3s (used to check what should exist)
+        device_mp3s: Dict mapping device relative paths to device Path objects
+        progress: Optional rich Progress instance for progress bar
+        task: Optional rich task ID for progress tracking
+        console: Optional rich Console for styled output
+
+    Returns:
+        Tuple of (removed_count, errors_list)
+    """
     removed = 0
     errors = []
+    use_rich = console is not None
+
+    def output(msg, plain_msg=None):
+        if use_rich:
+            console.print(msg)
+        else:
+            print(plain_msg if plain_msg else msg)
 
     source_names = set(source_mp3s.keys())
 
     for dest_rel, device_file in device_mp3s.items():
         if dest_rel not in source_names:
             try:
-                print(f"  [DELETE] {dest_rel}")
+                output(f"  [red][DELETE][/red] {dest_rel}",
+                       f"  [DELETE] {dest_rel}")
                 device_file.unlink()
                 removed += 1
             except Exception as e:
-                print(f"  [ERROR] Could not delete {dest_rel}: {e}")
+                output(f"  [red][ERROR][/red] Could not delete {dest_rel}: {e}",
+                       f"  [ERROR] Could not delete {dest_rel}: {e}")
                 errors.append((dest_rel, str(e)))
+
+            if progress and task is not None:
+                progress.advance(task)
 
     return removed, errors
 
@@ -284,24 +360,63 @@ def main():
     total_removed = 0
     all_errors = []
 
-    if to_copy or to_update:
-        print("Copying files...")
-        print("-" * 40)
-        copied, skipped, errors = sync_files(source_mp3s, device_path)
-        total_copied = copied
-        total_skipped = skipped
-        all_errors.extend(errors)
-        print("-" * 40)
+    # Calculate total operations for progress bar
+    total_ops = len(source_mp3s) + len(to_delete)
+
+    if RICH_AVAILABLE:
+        console = Console()
+        with Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(bar_width=40),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TextColumn("({task.completed}/{task.total})"),
+            TimeRemainingColumn(),
+            console=console,
+            transient=False,
+        ) as progress:
+            task = progress.add_task("Syncing...", total=total_ops)
+
+            if to_copy or to_update:
+                console.print("Copying files...")
+                console.print("-" * 40)
+                copied, skipped, errors = sync_files(source_mp3s, device_path, progress, task, console)
+                total_copied = copied
+                total_skipped = skipped
+                all_errors.extend(errors)
+                console.print("-" * 40)
+                console.print()
+
+            if to_delete:
+                console.print("Removing orphaned files...")
+                console.print("-" * 40)
+                removed, errors = remove_orphans(source_mp3s, device_mp3s, progress, task, console)
+                total_removed = removed
+                all_errors.extend(errors)
+                console.print("-" * 40)
+                console.print()
+    else:
+        # Fallback if rich is not installed
+        print("(Install 'rich' for progress bar: pip install rich)")
         print()
 
-    if to_delete:
-        print("Removing orphaned files...")
-        print("-" * 40)
-        removed, errors = remove_orphans(source_mp3s, device_mp3s)
-        total_removed = removed
-        all_errors.extend(errors)
-        print("-" * 40)
-        print()
+        if to_copy or to_update:
+            print("Copying files...")
+            print("-" * 40)
+            copied, skipped, errors = sync_files(source_mp3s, device_path)
+            total_copied = copied
+            total_skipped = skipped
+            all_errors.extend(errors)
+            print("-" * 40)
+            print()
+
+        if to_delete:
+            print("Removing orphaned files...")
+            print("-" * 40)
+            removed, errors = remove_orphans(source_mp3s, device_mp3s)
+            total_removed = removed
+            all_errors.extend(errors)
+            print("-" * 40)
+            print()
 
     # Summary
     print("Sync complete!")
