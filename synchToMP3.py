@@ -30,6 +30,7 @@ except ImportError:
 # Files to exclude from sync
 EXCLUDE_FILES = {
     'synchToMP3.py',
+    'downloadYT.py',
     'readme.md',
     'bashinstructions.md',
     'Claude.md',
