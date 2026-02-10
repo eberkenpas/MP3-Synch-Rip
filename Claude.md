@@ -6,7 +6,7 @@ A toolkit for downloading audio from YouTube and syncing to an Innioasis Y1 MP3 
 ## Components
 
 ### Scripts
-- `downloadYT.py` - YouTube download script with auto-splitting. Usage: `./downloadYT.py '<youtube-url>'`
+- `downloadYT.py` - YouTube download script with playlist support and auto-splitting. Usage: `./downloadYT.py '<youtube-url>'` or `./downloadYT.py -p '<playlist-url>'`
 - `synchToMP3.py` - Sync music to Y1 device. Usage: `python3 synchToMP3.py`
 - `yt-audio.sh` - Legacy shell script (no auto-splitting)
 
@@ -15,7 +15,7 @@ A toolkit for downloading audio from YouTube and syncing to an Innioasis Y1 MP3 
 - Root level - Music and soundtrack files
 
 ### Documentation
-- `readme.md` - Manual yt-dlp command reference and prerequisites
+- `readme.md` - Prerequisites, quick start examples, and manual yt-dlp reference
 - `bashinstructions.md` - Quick usage guide for downloadYT.py
 
 ### Dependencies (installed in `~/.local/bin/`)
@@ -39,6 +39,9 @@ A toolkit for downloading audio from YouTube and syncing to an Innioasis Y1 MP3 
 - [x] Created `downloadYT.py` Python script with auto-splitting for large files (>3GB)
 - [x] Add progress bar to sync tool for file transfers
 - [x] Add YouTube playlist support to downloadYT.py (downloads and combines into single file)
+- [x] Downloaded Arc Raiders soundtrack collection
+- [x] Downloaded Kathy Joseph's History of Electricity series
+- [x] Updated readme.md with playlist usage examples
 
 ### Future Ideas
 - [ ] Add batch download from text file
@@ -67,10 +70,10 @@ Download audio from YouTube:
 ./downloadYT.py 'https://www.youtube.com/watch?v=VIDEO_ID'
 ```
 
-Download playlist as single file (great for audiobooks):
+Download playlist as single combined file (great for audiobooks):
 ```bash
-./downloadYT.py --playlist 'https://www.youtube.com/playlist?list=PLAYLIST_ID'
-./downloadYT.py --playlist 'URL' --name 'Custom Name'
+./downloadYT.py -p 'https://www.youtube.com/watch?v=VIDEO_ID&list=PLAYLIST_ID'
+./downloadYT.py -p -n 'Custom Name' 'https://www.youtube.com/watch?v=VIDEO_ID&list=PLAYLIST_ID'
 ```
 
 Sync music to Y1 device:

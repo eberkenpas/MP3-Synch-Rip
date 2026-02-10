@@ -20,8 +20,20 @@ cp /tmp/ffmpeg-*-amd64-static/ffprobe ~/.local/bin/
 ## Quick Start
 
 Use the `downloadYT.py` script:
+
+**Single video:**
 ```bash
 ./downloadYT.py 'https://www.youtube.com/watch?v=VIDEO_ID'
+```
+
+**Playlist (combined into one MP3):**
+```bash
+./downloadYT.py -p 'https://www.youtube.com/watch?v=VIDEO_ID&list=PLAYLIST_ID'
+```
+
+**Playlist with a custom output name:**
+```bash
+./downloadYT.py -p -n 'My Playlist Name' 'https://www.youtube.com/watch?v=VIDEO_ID&list=PLAYLIST_ID'
 ```
 
 Files larger than 3GB are automatically split into parts (e.g., "Title part 1 of 2.mp3").
