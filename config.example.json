@@ -1,0 +1,10 @@
+{
+  "download_directory": "./downloads",
+  "sync_directory": "/path/to/device",
+  "audio_format": "mp3",
+  "audio_quality": "192",
+  "urls": [
+    "https://www.youtube.com/watch?v=example1",
+    "https://www.youtube.com/watch?v=example2"
+  ]
+}
